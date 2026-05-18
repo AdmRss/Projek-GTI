@@ -683,10 +683,10 @@ void drawCarBody()
     drawBox(0.92f, 0.12f, 1.40f);
     glPopMatrix();
 
-    // kabin
+    // kabin 
     glPushMatrix();
-    glTranslatef(0.26f, 0.90f, 0.0f);
-    drawBox(1.82f, 0.38f, 1.28f);
+    glTranslatef(0.38f, 0.90f, 0.0f);
+    drawBox(1.58f, 0.38f, 1.28f);
     glPopMatrix();
 
     // atap
@@ -698,25 +698,19 @@ void drawCarBody()
     // kaca biru muda
     setMaterial(0.42f, 0.83f, 1.0f, 95.0f);
 
+    // Kaca Depan
     glPushMatrix();
-    glTranslatef(-0.55f, 1.01f, 0.0f); 
-    glRotatef(-35.0f, 0, 0, 1);
-    drawBox(0.12f, 0.65f, 1.25f); 
+    glTranslatef(-0.62f, 0.94f, 0.0f); 
+    glRotatef(-39.0f, 0, 0, 1);
+    drawBox(0.12f, 0.65f, 1.26f); 
     glPopMatrix();
 
+    // Kaca Belakang
     glPushMatrix();
-    glTranslatef(0.92f, 1.01f, 0.0f);
+    glTranslatef(0.96f, 0.98f, 0.0f);
     glRotatef(30.0f, 0, 0, 1);
     drawBox(0.12f, 0.52f, 1.15f);
     glPopMatrix();
-
-    for (int s = -1; s <= 1; s += 2)
-    {
-        glPushMatrix();
-        glTranslatef(0.18f, 1.00f, s * 0.67f);
-        drawBox(1.12f, 0.27f, 0.045f);
-        glPopMatrix();
-    }
 
     // pilar hitam
     setMaterial(0.06f, 0.06f, 0.07f, 40.0f);
