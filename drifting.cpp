@@ -699,15 +699,15 @@ void drawCarBody()
     setMaterial(0.42f, 0.83f, 1.0f, 95.0f);
 
     glPushMatrix();
-    glTranslatef(-0.46f, 0.98f, 0.0f);
-    glRotatef(-31.0f, 0, 0, 1);
-    drawBox(0.24f, 0.72f, 1.22f);
+    glTranslatef(-0.55f, 1.01f, 0.0f); 
+    glRotatef(-35.0f, 0, 0, 1);
+    drawBox(0.12f, 0.65f, 1.25f); 
     glPopMatrix();
 
     glPushMatrix();
-    glTranslatef(0.96f, 0.96f, 0.0f);
-    glRotatef(28.0f, 0, 0, 1);
-    drawBox(0.16f, 0.48f, 1.10f);
+    glTranslatef(0.92f, 1.01f, 0.0f);
+    glRotatef(30.0f, 0, 0, 1);
+    drawBox(0.12f, 0.52f, 1.15f);
     glPopMatrix();
 
     for (int s = -1; s <= 1; s += 2)
@@ -1068,183 +1068,129 @@ void specialUp(int key, int x, int y)
 // ==============================
 void updateCar()
 {
-    const float maxForwardSpeed = 0.17f;
-    const float maxReverseSpeed = -0.07f;
-    const float acceleration    = 0.0048f;
-    const float brakePower      = 0.0045f;
-    const float rollingFriction = 0.982f;
+    const float maxForwardSpeed = 0.23f; // Top speed sedikit dinaikkan
+    const float maxReverseSpeed = -0.08f;
+    const float acceleration    = 0.0055f;
+    const float brakePower      = 0.0075f;
+    const float rollingFriction = 0.985f;
 
-    if (specialKey[GLUT_KEY_UP])
-    {
+    if (specialKey[GLUT_KEY_UP]) {
         carSpeed += acceleration;
-
-        if (carSpeed > maxForwardSpeed)
-            carSpeed = maxForwardSpeed;
-    }
-    else if (specialKey[GLUT_KEY_DOWN])
-    {
+        if (carSpeed > maxForwardSpeed) carSpeed = maxForwardSpeed;
+    } else if (specialKey[GLUT_KEY_DOWN]) {
         carSpeed -= brakePower;
-
-        if (carSpeed < maxReverseSpeed)
-            carSpeed = maxReverseSpeed;
-    }
-    else
-    {
+        if (carSpeed < maxReverseSpeed) carSpeed = maxReverseSpeed;
+    } else {
         carSpeed *= rollingFriction;
-
-        if (fabs(carSpeed) < 0.001f)
-            carSpeed = 0.0f;
+        if (fabs(carSpeed) < 0.001f) carSpeed = 0.0f;
     }
 
     float steerInput = 0.0f;
-
-    if (specialKey[GLUT_KEY_LEFT])
-        steerInput = 1.0f;
-
-    if (specialKey[GLUT_KEY_RIGHT])
-        steerInput = -1.0f;
+    if (specialKey[GLUT_KEY_LEFT])  steerInput =  1.0f;
+    if (specialKey[GLUT_KEY_RIGHT]) steerInput = -1.0f;
 
     bool handbrake = normalKey[' '];
-
     float speedRatio = fabs(carSpeed) / maxForwardSpeed;
-    if (speedRatio > 1.0f)
-        speedRatio = 1.0f;
+    if (speedRatio > 1.0f) speedRatio = 1.0f;
 
-    isDrifting = handbrake && fabs(carSpeed) > 0.035f && fabs(steerInput) > 0.01f;
-
-    // combo drift
-    if (isDrifting)
-    {
-        driftFrames++;
-
-        if (driftFrames > 240)
-            comboMultiplier = 4.0f;
-        else if (driftFrames > 160)
-            comboMultiplier = 3.0f;
-        else if (driftFrames > 80)
-            comboMultiplier = 2.0f;
-        else
-            comboMultiplier = 1.0f;
+    // Logika Drifting
+    bool canDrift = (fabs(carSpeed) > 0.06f);
+    if (handbrake && canDrift) {
+        isDrifting = true;
+    } else if (!handbrake) {
+        isDrifting = false; 
     }
-    else
-    {
+
+    // Sistem Combo
+    if (isDrifting) {
+        driftFrames++;
+        if (driftFrames > 240) comboMultiplier = 4.0f;
+        else if (driftFrames > 160) comboMultiplier = 3.0f;
+        else if (driftFrames > 80) comboMultiplier = 2.0f;
+        else comboMultiplier = 1.0f;
+    } else {
         driftFrames = 0;
         comboMultiplier = 1.0f;
     }
 
-    // ban depan belok pelan
-    float targetSteerVisual = steerInput * (isDrifting ? 22.0f : 16.0f);
-    steerVisualAngle += (targetSteerVisual - steerVisualAngle) * 0.10f;
+    // --- HANDLING & STEERING ---
+    float targetSteerVisual = steerInput * 25.0f;
+    steerVisualAngle += (targetSteerVisual - steerVisualAngle) * 0.15f;
 
-    // rotasi lambat dan smooth
-    float yawAccel = steerInput * (0.22f + speedRatio * 0.55f);
+    float turnPower = steerInput * (0.3f + speedRatio * 0.45f);
+    if (carSpeed < 0.0f) turnPower = -turnPower * 0.65f;
 
-    if (carSpeed < 0.0f)
-        yawAccel = -yawAccel * 0.65f;
-
-    if (isDrifting)
-        yawAccel *= 0.32f;
-
-    carYawVel += yawAccel;
-
-    if (isDrifting)
-        carYawVel *= 0.965f;
-    else
-        carYawVel *= 0.70f;
-
+    carYawVel += turnPower;
+    carYawVel *= isDrifting ? 0.95f : 0.82f; // Saat drift, handling lebih licin (mudah oversteer)
     carAngle += carYawVel;
 
-    // slip drift
-    float targetSlip = isDrifting ? steerInput * (7.0f + 10.0f * speedRatio) : 0.0f;
-    float slipRate = isDrifting ? 0.045f : 0.12f;
+    // --- Lateral Inertia (Physics buat drift) ---
+    static float lateralSpeed = 0.0f;
 
-    driftSlipAngle += (targetSlip - driftSlipAngle) * slipRate;
-
-    if (!isDrifting)
-        driftSlipAngle *= 0.94f;
-
-    if (fabs(driftSlipAngle) < 0.05f)
-        driftSlipAngle = 0.0f;
-
-    float moveAngle = (carAngle - driftSlipAngle * 0.55f) * M_PI / 180.0f;
-    float bodyRad   = carAngle * M_PI / 180.0f;
-
-    float forwardX = -cos(moveAngle);
-    float forwardZ =  sin(moveAngle);
-
-    float nextX = carX + forwardX * carSpeed;
-    float nextZ = carZ + forwardZ * carSpeed;
-
-    if (isDrifting)
-    {
-        float sideX = sin(bodyRad);
-        float sideZ = cos(bodyRad);
-
-        nextX += sideX * steerInput * fabs(carSpeed) * 0.13f;
-        nextZ += sideZ * steerInput * fabs(carSpeed) * 0.13f;
-
-        carSpeed *= 0.992f;
-
-        driftScore += (fabs(carSpeed) * 8.0f + fabs(driftSlipAngle) * 0.04f) * comboMultiplier;
+    if (isDrifting) {
+        // Gaya sentrifugal melempar mobil ke samping berlawanan arah belok
+        lateralSpeed += (carYawVel * speedRatio * 0.022f);
+        // Batasi batas maksimal ngesot agar tidak melayang
+        if (lateralSpeed >  0.085f) lateralSpeed =  0.085f;
+        if (lateralSpeed < -0.085f) lateralSpeed = -0.085f;
     }
 
+    // Friksi ban (Grip)
+    float grip = isDrifting ? 0.985f : 0.85f; // Licin saat spasi ditahan, langsung nge-grip saat dilepas
+    lateralSpeed *= grip;
+
+    // Efek visual kemiringan bodi saat drift
+    float targetSlip = isDrifting ? (lateralSpeed * -160.0f) : 0.0f;
+    driftSlipAngle += (targetSlip - driftSlipAngle) * 0.12f;
+    if (fabs(driftSlipAngle) < 0.1f) driftSlipAngle = 0.0f;
+
+    // --- KALKULASI VEKTOR LINTASAN ---
+    float headingRad = carAngle * M_PI / 180.0f; // Arah moncong mobil menghadap
+    
+    float forwardX = -cos(headingRad);
+    float forwardZ =  sin(headingRad);
+    float sideX = sin(headingRad);
+    float sideZ = cos(headingRad);
+
+    // Gerak Maju + Gerak Menyamping (Inertia) digabung!
+    float nextX = carX + (forwardX * carSpeed) + (sideX * lateralSpeed);
+    float nextZ = carZ + (forwardZ * carSpeed) + (sideZ * lateralSpeed);
+
+    if (isDrifting) {
+        carSpeed *= 0.995f; // Tenaga mesin berkurang saat ngesot
+        driftScore += (fabs(carSpeed) * 6.0f + fabs(lateralSpeed) * 25.0f) * comboMultiplier;
+    }
+
+    // --- COLLISION (Deteksi Tabrakan) ---
     bool hitWall = false;
 
-    if (isOnTrack(nextX, nextZ))
-    {
+    if (isOnTrack(nextX, nextZ)) {
         carX = nextX;
         carZ = nextZ;
-    }
-    else if (isOnTrack(nextX, carZ))
-    {
+    } else if (isOnTrack(nextX, carZ)) {
         carX = nextX;
-        carSpeed *= -0.18f;
-        carYawVel *= 0.25f;
-        driftSlipAngle *= 0.35f;
+        carSpeed *= -0.2f; carYawVel *= 0.2f; lateralSpeed *= -0.5f; // Pantulan tembok
         hitWall = true;
-    }
-    else if (isOnTrack(carX, nextZ))
-    {
+    } else if (isOnTrack(carX, nextZ)) {
         carZ = nextZ;
-        carSpeed *= -0.18f;
-        carYawVel *= 0.25f;
-        driftSlipAngle *= 0.35f;
+        carSpeed *= -0.2f; carYawVel *= 0.2f; lateralSpeed *= -0.5f;
         hitWall = true;
-    }
-    else
-    {
-        carSpeed *= -0.20f;
-        carYawVel *= 0.20f;
-        driftSlipAngle *= 0.25f;
+    } else {
+        carSpeed *= -0.25f; carYawVel *= 0.2f; lateralSpeed *= -0.5f;
         hitWall = true;
     }
 
-    if (hitWall)
-    {
-        driftFrames = 0;
-        comboMultiplier = 1.0f;
-        isDrifting = false;
+    if (hitWall) {
+        driftFrames = 0; comboMultiplier = 1.0f; isDrifting = false;
+        driftSlipAngle *= 0.35f;
     }
 
     wheelRot += carSpeed * 220.0f;
-
-    if (wheelRot > 360.0f)
-        wheelRot -= 360.0f;
-
-    if (wheelRot < -360.0f)
-        wheelRot += 360.0f;
+    if (wheelRot > 360.0f) wheelRot -= 360.0f;
+    if (wheelRot < -360.0f) wheelRot += 360.0f;
 
     updateSkidMarks();
     updateLapSystem();
-}
-
-void timer(int value)
-{
-    updateCar();
-    smokeTime += 0.06f;
-
-    glutPostRedisplay();
-    glutTimerFunc(16, timer, 0);
 }
 
 // ==============================
