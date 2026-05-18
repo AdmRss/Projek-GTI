@@ -35,6 +35,10 @@ int nextCheckpoint = 0;
 bool lapStarted = false;
 int checkpointCooldown = 0;
 
+// TAMBAHAN UNTUK UI SLIDER MOVEMENT
+float speedMultiplier = 1.0f;
+bool isDraggingSlider = false;
+
 // ==============================
 // UKURAN TRACK
 // ==============================

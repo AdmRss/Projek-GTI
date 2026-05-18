@@ -116,9 +116,12 @@ int main(int argc, char** argv)
 
     glutKeyboardFunc(keyboardDown);
     glutKeyboardUpFunc(keyboardUp);
-
     glutSpecialFunc(specialDown);
     glutSpecialUpFunc(specialUp);
+
+    // Mendaftarkan kontrol Mouse untuk Slider
+    glutMouseFunc(mouseButton);
+    glutMotionFunc(mouseMotion);
 
     glutTimerFunc(0, timer, 0);
 

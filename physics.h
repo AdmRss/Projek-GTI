@@ -7,9 +7,7 @@
 void addSkidMark(float localZ)
 {
     float rad = carAngle * M_PI / 180.0f;
-
     float rearLocalX = 1.25f;
-
     float worldX = carX + rearLocalX * cos(rad) + localZ * sin(rad);
     float worldZ = carZ - rearLocalX * sin(rad) + localZ * cos(rad);
 
@@ -19,18 +17,14 @@ void addSkidMark(float localZ)
     skidMarks[skidIndex].active = true;
 
     skidIndex++;
-    if (skidIndex >= MAX_SKID)
-        skidIndex = 0;
+    if (skidIndex >= MAX_SKID) skidIndex = 0;
 }
 
 void updateSkidMarks()
 {
-    if (isDrifting)
-    {
+    if (isDrifting) {
         skidFrame++;
-
-        if (skidFrame % 3 == 0)
-        {
+        if (skidFrame % 3 == 0) {
             addSkidMark(0.72f);
             addSkidMark(-0.72f);
         }
@@ -42,61 +36,46 @@ void updateSkidMarks()
 // ==============================
 int getCheckpointZone()
 {
-    if (carZ > 8.2f && carX > -20.0f && carX < 20.0f)
-        return 0; // atas / start
-
-    if (carX > 17.5f && carZ > -12.0f && carZ < 12.0f)
-        return 1; // kanan
-
-    if (carZ < -8.2f && carX > -20.0f && carX < 20.0f)
-        return 2; // bawah
-
-    if (carX < -17.5f && carZ > -12.0f && carZ < 12.0f)
-        return 3; // kiri
-
+    if (carZ > 8.2f && carX > -20.0f && carX < 20.0f) return 0; // atas / start
+    if (carX > 17.5f && carZ > -12.0f && carZ < 12.0f) return 1; // kanan
+    if (carZ < -8.2f && carX > -20.0f && carX < 20.0f) return 2; // bawah
+    if (carX < -17.5f && carZ > -12.0f && carZ < 12.0f) return 3; // kiri
     return -1;
 }
 
 void updateLapSystem()
 {
-    if (checkpointCooldown > 0)
-        checkpointCooldown--;
+    if (checkpointCooldown > 0) checkpointCooldown--;
 
     int zone = getCheckpointZone();
-
-    if (zone == nextCheckpoint && checkpointCooldown == 0)
-    {
-        if (nextCheckpoint == 0)
-        {
-            if (lapStarted)
-                lapCount++;
-            else
-                lapStarted = true;
+    if (zone == nextCheckpoint && checkpointCooldown == 0) {
+        if (nextCheckpoint == 0) {
+            if (lapStarted) lapCount++;
+            else lapStarted = true;
         }
-
         nextCheckpoint++;
-        if (nextCheckpoint > 3)
-            nextCheckpoint = 0;
-
+        if (nextCheckpoint > 3) nextCheckpoint = 0;
         checkpointCooldown = 45;
     }
 }
 
 // ==============================
-// UPDATE MOBIL (DIREVISI: Arcade Drift Physics)
+// UPDATE MOBIL (WASD & Multiplier Slider)
 // ==============================
 void updateCar()
 {
-    const float maxForwardSpeed = 0.23f; // Top speed sedikit dinaikkan
-    const float maxReverseSpeed = -0.08f;
-    const float acceleration    = 0.0055f;
-    const float brakePower      = 0.0075f;
+    // Menerapkan nilai dari slider UI
+    const float maxForwardSpeed = 0.23f * speedMultiplier; 
+    const float maxReverseSpeed = -0.08f * speedMultiplier;
+    const float acceleration    = 0.0055f * speedMultiplier;
+    const float brakePower      = 0.0075f * speedMultiplier;
     const float rollingFriction = 0.985f;
 
-    if (specialKey[GLUT_KEY_UP]) {
+    // KONTROL WASD (Maju & Mundur)
+    if (normalKey['w'] || normalKey['W']) {
         carSpeed += acceleration;
         if (carSpeed > maxForwardSpeed) carSpeed = maxForwardSpeed;
-    } else if (specialKey[GLUT_KEY_DOWN]) {
+    } else if (normalKey['s'] || normalKey['S']) {
         carSpeed -= brakePower;
         if (carSpeed < maxReverseSpeed) carSpeed = maxReverseSpeed;
     } else {
@@ -104,16 +83,17 @@ void updateCar()
         if (fabs(carSpeed) < 0.001f) carSpeed = 0.0f;
     }
 
+    // KONTROL WASD (Kiri & Kanan)
     float steerInput = 0.0f;
-    if (specialKey[GLUT_KEY_LEFT])  steerInput =  1.0f;
-    if (specialKey[GLUT_KEY_RIGHT]) steerInput = -1.0f;
+    if (normalKey['a'] || normalKey['A']) steerInput =  1.0f;
+    if (normalKey['d'] || normalKey['D']) steerInput = -1.0f;
 
     bool handbrake = normalKey[' '];
     float speedRatio = fabs(carSpeed) / maxForwardSpeed;
     if (speedRatio > 1.0f) speedRatio = 1.0f;
 
     // Logika Drifting
-    bool canDrift = (fabs(carSpeed) > 0.06f);
+    bool canDrift = (fabs(carSpeed) > 0.06f * speedMultiplier);
     if (handbrake && canDrift) {
         isDrifting = true;
     } else if (!handbrake) {
@@ -136,47 +116,46 @@ void updateCar()
     float targetSteerVisual = steerInput * 25.0f;
     steerVisualAngle += (targetSteerVisual - steerVisualAngle) * 0.15f;
 
-    float turnPower = steerInput * (0.3f + speedRatio * 0.45f);
+    // Kelincahan belok juga dipengaruhi oleh slider kecepatan
+    float turnPower = steerInput * (0.3f + speedRatio * 0.45f) * speedMultiplier;
     if (carSpeed < 0.0f) turnPower = -turnPower * 0.65f;
 
     carYawVel += turnPower;
-    carYawVel *= isDrifting ? 0.95f : 0.82f; // Saat drift, handling lebih licin (mudah oversteer)
+    carYawVel *= isDrifting ? 0.95f : 0.82f;
     carAngle += carYawVel;
 
     // --- LATERAL INERTIA (FISIKA NGESOT) ---
     static float lateralSpeed = 0.0f;
 
     if (isDrifting) {
-        // Gaya sentrifugal melempar mobil ke samping berlawanan arah belok
         lateralSpeed += (carYawVel * speedRatio * 0.022f);
-        // Batasi batas maksimal ngesot agar tidak melayang
-        if (lateralSpeed >  0.085f) lateralSpeed =  0.085f;
-        if (lateralSpeed < -0.085f) lateralSpeed = -0.085f;
+        
+        // Batas ngesot juga diskalakan dengan slider
+        float maxSlip = 0.085f * speedMultiplier;
+        if (lateralSpeed >  maxSlip) lateralSpeed =  maxSlip;
+        if (lateralSpeed < -maxSlip) lateralSpeed = -maxSlip;
     }
 
-    // Friksi ban (Grip)
-    float grip = isDrifting ? 0.985f : 0.85f; // Licin saat spasi ditahan, langsung nge-grip saat dilepas
+    float grip = isDrifting ? 0.985f : 0.85f; 
     lateralSpeed *= grip;
 
-    // Efek visual kemiringan bodi saat drift
     float targetSlip = isDrifting ? (lateralSpeed * -160.0f) : 0.0f;
     driftSlipAngle += (targetSlip - driftSlipAngle) * 0.12f;
     if (fabs(driftSlipAngle) < 0.1f) driftSlipAngle = 0.0f;
 
     // --- KALKULASI VEKTOR LINTASAN ---
-    float headingRad = carAngle * M_PI / 180.0f; // Arah moncong mobil menghadap
+    float headingRad = carAngle * M_PI / 180.0f; 
     
     float forwardX = -cos(headingRad);
     float forwardZ =  sin(headingRad);
     float sideX = sin(headingRad);
     float sideZ = cos(headingRad);
 
-    // Gerak Maju + Gerak Menyamping (Inertia) digabung!
     float nextX = carX + (forwardX * carSpeed) + (sideX * lateralSpeed);
     float nextZ = carZ + (forwardZ * carSpeed) + (sideZ * lateralSpeed);
 
     if (isDrifting) {
-        carSpeed *= 0.995f; // Tenaga mesin berkurang saat ngesot
+        carSpeed *= 0.995f; 
         driftScore += (fabs(carSpeed) * 6.0f + fabs(lateralSpeed) * 25.0f) * comboMultiplier;
     }
 
@@ -188,7 +167,7 @@ void updateCar()
         carZ = nextZ;
     } else if (isOnTrack(nextX, carZ)) {
         carX = nextX;
-        carSpeed *= -0.2f; carYawVel *= 0.2f; lateralSpeed *= -0.5f; // Pantulan tembok
+        carSpeed *= -0.2f; carYawVel *= 0.2f; lateralSpeed *= -0.5f; 
         hitWall = true;
     } else if (isOnTrack(carX, nextZ)) {
         carZ = nextZ;
