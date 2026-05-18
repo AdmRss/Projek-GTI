@@ -35,7 +35,7 @@ int nextCheckpoint = 0;
 bool lapStarted = false;
 int checkpointCooldown = 0;
 
-// TAMBAHAN UNTUK UI SLIDER MOVEMENT
+// UI SLIDER MOVEMENT
 float speedMultiplier = 1.0f;
 bool isDraggingSlider = false;
 
@@ -55,7 +55,7 @@ const float INNER_TOP    =  4.8f;
 const float TRACK_MARGIN = 1.15f;
 
 // ==============================
-// SKID MARK
+// SKID MARK 
 // ==============================
 struct SkidMark
 {
@@ -63,6 +63,7 @@ struct SkidMark
     float z;
     float angle;
     bool active;
+    float lifeTime; // Waktu sisa sebelum memudar
 };
 
 const int MAX_SKID = 600;

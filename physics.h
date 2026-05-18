@@ -15,6 +15,7 @@ void addSkidMark(float localZ)
     skidMarks[skidIndex].z = worldZ;
     skidMarks[skidIndex].angle = carAngle;
     skidMarks[skidIndex].active = true;
+    skidMarks[skidIndex].lifeTime = 5.0f; 
 
     skidIndex++;
     if (skidIndex >= MAX_SKID) skidIndex = 0;
@@ -22,6 +23,15 @@ void addSkidMark(float localZ)
 
 void updateSkidMarks()
 {
+    for (int i = 0; i < MAX_SKID; i++) {
+        if (skidMarks[i].active) {
+            skidMarks[i].lifeTime -= 0.016f; 
+            if (skidMarks[i].lifeTime <= 0.0f) {
+                skidMarks[i].active = false;
+            }
+        }
+    }
+
     if (isDrifting) {
         skidFrame++;
         if (skidFrame % 3 == 0) {
@@ -32,14 +42,14 @@ void updateSkidMarks()
 }
 
 // ==============================
-// CHECKPOINT / LAP
+// CHECKPOINT / LAP SYSTEM
 // ==============================
 int getCheckpointZone()
 {
-    if (carZ > 8.2f && carX > -20.0f && carX < 20.0f) return 0; // atas / start
-    if (carX > 17.5f && carZ > -12.0f && carZ < 12.0f) return 1; // kanan
-    if (carZ < -8.2f && carX > -20.0f && carX < 20.0f) return 2; // bawah
-    if (carX < -17.5f && carZ > -12.0f && carZ < 12.0f) return 3; // kiri
+    if (carX > -2.5f && carX < 2.5f && carZ > 4.8f && carZ < 16.0f) return 0;   // Atas
+    if (carZ > -2.5f && carZ < 2.5f && carX > 8.8f && carX < 24.0f) return 1;   // Kanan
+    if (carX > -2.5f && carX < 2.5f && carZ < -4.8f && carZ > -16.0f) return 2; // Bawah (OFFICIAL FINISH LINE)
+    if (carZ > -2.5f && carZ < 2.5f && carX < -8.8f && carX > -24.0f) return 3; // Kiri
     return -1;
 }
 
@@ -49,29 +59,38 @@ void updateLapSystem()
 
     int zone = getCheckpointZone();
     if (zone == nextCheckpoint && checkpointCooldown == 0) {
-        if (nextCheckpoint == 0) {
+        
+        // Checkpoint 2 (Bawah) bertindak sebagai Finish Line utama
+        if (nextCheckpoint == 2) { 
             if (lapStarted) lapCount++;
             else lapStarted = true;
+            nextCheckpoint = 3; // Setelah garis Finish dilewati, target berikutnya reset/lanjut ke Kiri (3)
         }
-        nextCheckpoint++;
-        if (nextCheckpoint > 3) nextCheckpoint = 0;
+        else if (nextCheckpoint == 3) {
+            nextCheckpoint = 0; // Setelah Kiri (3), lanjut ke Atas (0)
+        }
+        else if (nextCheckpoint == 0) {
+            nextCheckpoint = 1; // Setelah Atas (0), lanjut ke Kanan (1)
+        }
+        else if (nextCheckpoint == 1) {
+            nextCheckpoint = 2; // Setelah Kanan (1), bersiap kembali ke Finish Line Bawah (2)
+        }
+        
         checkpointCooldown = 45;
     }
 }
 
 // ==============================
-// UPDATE MOBIL (WASD & Multiplier Slider)
+// UPDATE MOBIL
 // ==============================
 void updateCar()
 {
-    // Menerapkan nilai dari slider UI
     const float maxForwardSpeed = 0.23f * speedMultiplier; 
     const float maxReverseSpeed = -0.08f * speedMultiplier;
     const float acceleration    = 0.0055f * speedMultiplier;
     const float brakePower      = 0.0075f * speedMultiplier;
     const float rollingFriction = 0.985f;
 
-    // KONTROL WASD (Maju & Mundur)
     if (normalKey['w'] || normalKey['W']) {
         carSpeed += acceleration;
         if (carSpeed > maxForwardSpeed) carSpeed = maxForwardSpeed;
@@ -83,7 +102,6 @@ void updateCar()
         if (fabs(carSpeed) < 0.001f) carSpeed = 0.0f;
     }
 
-    // KONTROL WASD (Kiri & Kanan)
     float steerInput = 0.0f;
     if (normalKey['a'] || normalKey['A']) steerInput =  1.0f;
     if (normalKey['d'] || normalKey['D']) steerInput = -1.0f;
@@ -92,7 +110,6 @@ void updateCar()
     float speedRatio = fabs(carSpeed) / maxForwardSpeed;
     if (speedRatio > 1.0f) speedRatio = 1.0f;
 
-    // Logika Drifting
     bool canDrift = (fabs(carSpeed) > 0.06f * speedMultiplier);
     if (handbrake && canDrift) {
         isDrifting = true;
@@ -100,7 +117,6 @@ void updateCar()
         isDrifting = false; 
     }
 
-    // Sistem Combo
     if (isDrifting) {
         driftFrames++;
         if (driftFrames > 240) comboMultiplier = 4.0f;
@@ -112,11 +128,9 @@ void updateCar()
         comboMultiplier = 1.0f;
     }
 
-    // --- HANDLING & STEERING ---
     float targetSteerVisual = steerInput * 25.0f;
     steerVisualAngle += (targetSteerVisual - steerVisualAngle) * 0.15f;
 
-    // Kelincahan belok juga dipengaruhi oleh slider kecepatan
     float turnPower = steerInput * (0.3f + speedRatio * 0.45f) * speedMultiplier;
     if (carSpeed < 0.0f) turnPower = -turnPower * 0.65f;
 
@@ -124,13 +138,10 @@ void updateCar()
     carYawVel *= isDrifting ? 0.95f : 0.82f;
     carAngle += carYawVel;
 
-    // --- LATERAL INERTIA (FISIKA NGESOT) ---
     static float lateralSpeed = 0.0f;
 
     if (isDrifting) {
         lateralSpeed += (carYawVel * speedRatio * 0.022f);
-        
-        // Batas ngesot juga diskalakan dengan slider
         float maxSlip = 0.085f * speedMultiplier;
         if (lateralSpeed >  maxSlip) lateralSpeed =  maxSlip;
         if (lateralSpeed < -maxSlip) lateralSpeed = -maxSlip;
@@ -143,7 +154,6 @@ void updateCar()
     driftSlipAngle += (targetSlip - driftSlipAngle) * 0.12f;
     if (fabs(driftSlipAngle) < 0.1f) driftSlipAngle = 0.0f;
 
-    // --- KALKULASI VEKTOR LINTASAN ---
     float headingRad = carAngle * M_PI / 180.0f; 
     
     float forwardX = -cos(headingRad);
@@ -159,7 +169,6 @@ void updateCar()
         driftScore += (fabs(carSpeed) * 6.0f + fabs(lateralSpeed) * 25.0f) * comboMultiplier;
     }
 
-    // --- COLLISION (Deteksi Tabrakan) ---
     bool hitWall = false;
 
     if (isOnTrack(nextX, nextZ)) {
