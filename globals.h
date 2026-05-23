@@ -2,45 +2,45 @@
 #define GLOBALS_H
 
 // ==============================
-// GLOBAL MOBIL
+// GLOBAL MOBIL (Hanya Deklarasi)
 // ==============================
-float carX = -18.0f;
-float carZ = 10.0f;
-float carAngle = 180.0f;
-float carSpeed = 0.0f;
+extern float carX;
+extern float carZ;
+extern float carAngle;
+extern float carSpeed;
 
-float wheelRot = 0.0f;
-float smokeTime = 0.0f;
+extern float wheelRot;
+extern float smokeTime;
 
-float steerVisualAngle = 0.0f;
-float carYawVel = 0.0f;
-float driftSlipAngle = 0.0f;
+extern float steerVisualAngle;
+extern float carYawVel;
+extern float driftSlipAngle;
 
-bool specialKey[256] = { false };
-bool normalKey[256] = { false };
-bool isDrifting = false;
+extern bool specialKey[256];
+extern bool normalKey[256];
+extern bool isDrifting;
 
 // ==============================
-// FITUR GAME
+// FITUR GAME (Hanya Deklarasi)
 // ==============================
-int cameraMode = 0;
-bool nightMode = false;
+extern int cameraMode;
+extern bool nightMode;
 
-float driftScore = 0.0f;
-float comboMultiplier = 1.0f;
-int driftFrames = 0;
+extern float driftScore;
+extern float comboMultiplier;
+extern int driftFrames;
 
-int lapCount = 0;
-int nextCheckpoint = 0;
-bool lapStarted = false;
-int checkpointCooldown = 0;
+extern int lapCount;
+extern int nextCheckpoint;
+extern bool lapStarted;
+extern int checkpointCooldown;
 
 // UI SLIDER MOVEMENT
-float speedMultiplier = 1.0f;
-bool isDraggingSlider = false;
+extern float speedMultiplier;
+extern bool isDraggingSlider;
 
 // ==============================
-// UKURAN TRACK
+// UKURAN TRACK (Konstanta aman di Header)
 // ==============================
 const float OUTER_LEFT   = -24.0f;
 const float OUTER_RIGHT  =  24.0f;
@@ -55,8 +55,9 @@ const float INNER_TOP    =  4.8f;
 const float TRACK_MARGIN = 1.15f;
 
 // ==============================
-// SKID MARK 
+// SKID MARK (Definisi Struct & Deklarasi Array)
 // ==============================
+// Struct harus didefinisikan di header agar file lain tahu bentuk datanya
 struct SkidMark
 {
     float x;
@@ -67,8 +68,10 @@ struct SkidMark
 };
 
 const int MAX_SKID = 600;
-SkidMark skidMarks[MAX_SKID];
-int skidIndex = 0;
-int skidFrame = 0;
+
+// Variabel array dan index menggunakan extern
+extern SkidMark skidMarks[MAX_SKID];
+extern int skidIndex;
+extern int skidFrame;
 
 #endif
