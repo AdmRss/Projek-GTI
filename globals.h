@@ -1,8 +1,10 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#include <GL/glut.h>
+
 // ==============================
-// GLOBAL MOBIL (Hanya Deklarasi)
+// GLOBAL MOBIL
 // ==============================
 extern float carX;
 extern float carZ;
@@ -21,7 +23,7 @@ extern bool normalKey[256];
 extern bool isDrifting;
 
 // ==============================
-// FITUR GAME (Hanya Deklarasi)
+// FITUR GAME
 // ==============================
 extern int cameraMode;
 extern bool nightMode;
@@ -35,12 +37,35 @@ extern int nextCheckpoint;
 extern bool lapStarted;
 extern int checkpointCooldown;
 
-// UI SLIDER MOVEMENT
+// UI SLIDER
 extern float speedMultiplier;
 extern bool isDraggingSlider;
 
 // ==============================
-// UKURAN TRACK (Konstanta aman di Header)
+// RACE / WIN-LOSE SYSTEM
+// ==============================
+enum GameState { STATE_PLAYING, STATE_FINISHED };
+extern GameState gameState;
+extern float raceTime;       // detik sejak start
+extern float bestTime;       // rekor terbaik (-1 = belum ada)
+extern bool  isNewRecord;    // true jika finish terakhir adalah rekor baru
+
+// ==============================
+// CONFETTI
+// ==============================
+struct Confetti {
+    float x, y;
+    float vx, vy;
+    float r, g, b;
+    float size;
+    float rot, rotSpeed;
+};
+const int MAX_CONFETTI = 200;
+extern Confetti confettiParticles[MAX_CONFETTI];
+extern bool confettiActive;
+
+// ==============================
+// UKURAN TRACK
 // ==============================
 const float OUTER_LEFT   = -24.0f;
 const float OUTER_RIGHT  =  24.0f;
@@ -52,26 +77,26 @@ const float INNER_RIGHT  =  8.8f;
 const float INNER_BOTTOM = -4.8f;
 const float INNER_TOP    =  4.8f;
 
-const float TRACK_MARGIN = 1.15f;
+const float TRACK_MARGIN = 1.20f;
 
 // ==============================
-// SKID MARK (Definisi Struct & Deklarasi Array)
+// SKID MARK
 // ==============================
-// Struct harus didefinisikan di header agar file lain tahu bentuk datanya
-struct SkidMark
-{
-    float x;
-    float z;
-    float angle;
-    bool active;
-    float lifeTime; // Waktu sisa sebelum memudar
+struct SkidMark {
+    float x, z, angle;
+    bool  active;
+    float lifeTime;
 };
-
 const int MAX_SKID = 600;
-
-// Variabel array dan index menggunakan extern
 extern SkidMark skidMarks[MAX_SKID];
 extern int skidIndex;
 extern int skidFrame;
+
+// ==============================
+// TEXTURE IDs (prosedural)
+// ==============================
+extern GLuint texAsphalt;
+extern GLuint texGrass;
+extern GLuint texConcrete;
 
 #endif

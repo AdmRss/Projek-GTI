@@ -3,6 +3,7 @@
 
 void addSkidMark(float localZ);
 void updateSkidMarks();
+int  getCheckpointZone();
 void updateLapSystem();
 void updateCar();
 

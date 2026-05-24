@@ -1,47 +1,47 @@
-#include "physics.h" // buat fungsi-fungsi fisika: update mobil, skid mark, checkpoint, dll
-#include "globals.h" // buat deklarasi variabel global seperti posisi mobil, kecepatan, skor, dll
-#include <math.h> // buat fungsi matematika seperti sin, cos, dll
-#include <GL/glut.h> // buat fungsi OpenGL
-#include "environment.h" // buat fungsi gambar track, gunung, dll
-#include "car_graphics.h" // buat fungsi gambar mobil sama efek visual
-#include "utils.h" // buat fungsi utilitas seperti setMaterial, drawBox, dll
+#include "physics.h"
+#include "globals.h"
+#include "utils.h"
+#include <math.h>
+#include <GL/glut.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // ==============================
 // SKID MARK DINAMIS
 // ==============================
 void addSkidMark(float localZ)
 {
-    float rad = carAngle * M_PI / 180.0f;
-    float rearLocalX = 1.25f;
-    float worldX = carX + rearLocalX * cos(rad) + localZ * sin(rad);
-    float worldZ = carZ - rearLocalX * sin(rad) + localZ * cos(rad);
+    float rad      = carAngle * M_PI / 180.0f;
+    float rearX    = 1.25f;
+    float worldX   = carX + rearX * cos(rad) + localZ * sin(rad);
+    float worldZ   = carZ - rearX * sin(rad) + localZ * cos(rad);
 
-    skidMarks[skidIndex].x = worldX;
-    skidMarks[skidIndex].z = worldZ;
-    skidMarks[skidIndex].angle = carAngle;
-    skidMarks[skidIndex].active = true;
-    skidMarks[skidIndex].lifeTime = 5.0f; 
+    skidMarks[skidIndex].x        = worldX;
+    skidMarks[skidIndex].z        = worldZ;
+    skidMarks[skidIndex].angle    = carAngle;
+    skidMarks[skidIndex].active   = true;
+    skidMarks[skidIndex].lifeTime = 5.0f;
 
-    skidIndex++;
-    if (skidIndex >= MAX_SKID) skidIndex = 0;
+    skidIndex = (skidIndex + 1) % MAX_SKID;
 }
 
 void updateSkidMarks()
 {
+    const float dt = 0.016f;
     for (int i = 0; i < MAX_SKID; i++) {
-        if (skidMarks[i].active) {
-            skidMarks[i].lifeTime -= 0.016f; 
-            if (skidMarks[i].lifeTime <= 0.0f) {
-                skidMarks[i].active = false;
-            }
-        }
+        if (!skidMarks[i].active) continue;
+        skidMarks[i].lifeTime -= dt;
+        if (skidMarks[i].lifeTime <= 0.0f)
+            skidMarks[i].active = false;
     }
 
     if (isDrifting) {
         skidFrame++;
         if (skidFrame % 3 == 0) {
-            addSkidMark(0.72f);
-            addSkidMark(-0.72f);
+            addSkidMark( 0.75f);
+            addSkidMark(-0.75f);
         }
     }
 }
@@ -49,40 +49,52 @@ void updateSkidMarks()
 // ==============================
 // CHECKPOINT / LAP SYSTEM
 // ==============================
+// Layout checkpoint (disesuaikan dengan track baru):
+//   CP0 – straight utara  (x≈0, z>6)
+//   CP1 – straight timur  (z≈0, x>9.5)
+//   CP2 – straight selatan / FINISH LINE  (x≈0, z<-6)
+//   CP3 – straight barat  (z≈0, x<-9.5)
 int getCheckpointZone()
 {
-    if (carX > -2.5f && carX < 2.5f && carZ > 4.8f && carZ < 16.0f) return 0;   // Atas
-    if (carZ > -2.5f && carZ < 2.5f && carX > 8.8f && carX < 24.0f) return 1;   // Kanan
-    if (carX > -2.5f && carX < 2.5f && carZ < -4.8f && carZ > -16.0f) return 2; // Bawah (OFFICIAL FINISH LINE)
-    if (carZ > -2.5f && carZ < 2.5f && carX < -8.8f && carX > -24.0f) return 3; // Kiri
+    if (carX > -2.5f && carX < 2.5f &&  carZ >  6.0f && carZ <  15.5f) return 0; // Utara
+    if (carZ > -2.5f && carZ < 2.5f &&  carX >  9.5f && carX <  23.5f) return 1; // Timur
+    if (carX > -2.5f && carX < 2.5f &&  carZ < -6.0f && carZ > -15.5f) return 2; // Selatan (FINISH)
+    if (carZ > -2.5f && carZ < 2.5f &&  carX < -9.5f && carX > -23.5f) return 3; // Barat
     return -1;
 }
 
 void updateLapSystem()
 {
+    // Jangan update lap kalau sudah finish
+    if (gameState == STATE_FINISHED) return;
+
     if (checkpointCooldown > 0) checkpointCooldown--;
 
     int zone = getCheckpointZone();
-    if (zone == nextCheckpoint && checkpointCooldown == 0) {
-        
-        // Checkpoint 2 (Bawah) bertindak sebagai Finish Line utama
-        if (nextCheckpoint == 2) { 
-            if (lapStarted) lapCount++;
-            else lapStarted = true;
-            nextCheckpoint = 3; // Setelah garis Finish dilewati, target berikutnya reset/lanjut ke Kiri (3)
+    if (zone != nextCheckpoint || checkpointCooldown > 0) return;
+
+    if (nextCheckpoint == 2) {          // FINISH LINE
+        if (lapStarted) {
+            lapCount++;
+            // --- RACE SELESAI (1 lap penuh) ---
+            gameState = STATE_FINISHED;
+            // Update high-score
+            if (bestTime < 0.0f || raceTime < bestTime) {
+                bestTime   = raceTime;
+                isNewRecord = true;
+            } else {
+                isNewRecord = false;
+            }
+            spawnConfetti();
+        } else {
+            lapStarted = true;
         }
-        else if (nextCheckpoint == 3) {
-            nextCheckpoint = 0; // Setelah Kiri (3), lanjut ke Atas (0)
-        }
-        else if (nextCheckpoint == 0) {
-            nextCheckpoint = 1; // Setelah Atas (0), lanjut ke Kanan (1)
-        }
-        else if (nextCheckpoint == 1) {
-            nextCheckpoint = 2; // Setelah Kanan (1), bersiap kembali ke Finish Line Bawah (2)
-        }
-        
-        checkpointCooldown = 45;
-    }
+        nextCheckpoint = 3;
+    } else if (nextCheckpoint == 3) { nextCheckpoint = 0; }
+    else if  (nextCheckpoint == 0) { nextCheckpoint = 1; }
+    else if  (nextCheckpoint == 1) { nextCheckpoint = 2; }
+
+    checkpointCooldown = 48;
 }
 
 // ==============================
@@ -90,117 +102,149 @@ void updateLapSystem()
 // ==============================
 void updateCar()
 {
-    const float maxForwardSpeed = 0.23f * speedMultiplier; 
-    const float maxReverseSpeed = -0.08f * speedMultiplier;
-    const float acceleration    = 0.0055f * speedMultiplier;
-    const float brakePower      = 0.0075f * speedMultiplier;
-    const float rollingFriction = 0.985f;
+    // Hentikan input saat sudah finish
+    if (gameState == STATE_FINISHED) {
+        // Gesekan natural hingga berhenti
+        carSpeed   *= 0.94f;
+        carYawVel  *= 0.88f;
+        if (fabs(carSpeed) < 0.001f) carSpeed = 0.0f;
 
+        float headRad  = carAngle * M_PI / 180.0f;
+        float nextX2   = carX - cos(headRad) * carSpeed;
+        float nextZ2   = carZ + sin(headRad) * carSpeed;
+        float nx, nz;
+        if (!clampToTrack(nextX2, nextZ2, nx, nz)) {
+            carX = nextX2; carZ = nextZ2;
+        }
+
+        carAngle += carYawVel;
+        wheelRot += carSpeed * 220.0f;
+        updateSkidMarks();
+        updateConfetti();
+        return;
+    }
+
+    // Timer race
+    if (lapStarted) raceTime += 0.016f;
+
+    // --- KONSTANTA FISIKA ---
+    const float maxFwd   = 0.24f * speedMultiplier;
+    const float maxRev   = 0.09f * speedMultiplier;
+    const float accel    = 0.0056f * speedMultiplier;
+    const float brake    = 0.0078f * speedMultiplier;
+    const float rollFric = 0.986f;
+
+    // --- INPUT GAS/REM ---
     if (normalKey['w'] || normalKey['W']) {
-        carSpeed += acceleration;
-        if (carSpeed > maxForwardSpeed) carSpeed = maxForwardSpeed;
+        carSpeed += accel;
+        if (carSpeed >  maxFwd) carSpeed =  maxFwd;
     } else if (normalKey['s'] || normalKey['S']) {
-        carSpeed -= brakePower;
-        if (carSpeed < maxReverseSpeed) carSpeed = maxReverseSpeed;
+        carSpeed -= brake;
+        if (carSpeed < -maxRev) carSpeed = -maxRev;
     } else {
-        carSpeed *= rollingFriction;
+        carSpeed *= rollFric;
         if (fabs(carSpeed) < 0.001f) carSpeed = 0.0f;
     }
 
+    // --- STEER INPUT ---
     float steerInput = 0.0f;
     if (normalKey['a'] || normalKey['A']) steerInput =  1.0f;
     if (normalKey['d'] || normalKey['D']) steerInput = -1.0f;
 
-    bool handbrake = normalKey[' '];
-    float speedRatio = fabs(carSpeed) / maxForwardSpeed;
+    bool handbrake  = normalKey[' '];
+    float speedRatio = fabs(carSpeed) / maxFwd;
     if (speedRatio > 1.0f) speedRatio = 1.0f;
 
+    // --- DRIFT ---
     bool canDrift = (fabs(carSpeed) > 0.06f * speedMultiplier);
-    if (handbrake && canDrift) {
-        isDrifting = true;
-    } else if (!handbrake) {
-        isDrifting = false; 
-    }
+    isDrifting = handbrake && canDrift;
 
     if (isDrifting) {
         driftFrames++;
-        if (driftFrames > 240) comboMultiplier = 4.0f;
+        if      (driftFrames > 240) comboMultiplier = 4.0f;
         else if (driftFrames > 160) comboMultiplier = 3.0f;
-        else if (driftFrames > 80) comboMultiplier = 2.0f;
-        else comboMultiplier = 1.0f;
+        else if (driftFrames >  80) comboMultiplier = 2.0f;
+        else                        comboMultiplier = 1.0f;
     } else {
-        driftFrames = 0;
+        driftFrames     = 0;
         comboMultiplier = 1.0f;
     }
 
-    float targetSteerVisual = steerInput * 25.0f;
-    steerVisualAngle += (targetSteerVisual - steerVisualAngle) * 0.15f;
+    // --- STEER VISUAL ---
+    float targetSteerVis = steerInput * 26.0f;
+    steerVisualAngle += (targetSteerVis - steerVisualAngle) * 0.15f;
 
-    float turnPower = steerInput * (0.3f + speedRatio * 0.45f) * speedMultiplier;
-    if (carSpeed < 0.0f) turnPower = -turnPower * 0.65f;
+    // --- YAW ---
+    float turnPow = steerInput * (0.28f + speedRatio * 0.46f) * speedMultiplier;
+    if (carSpeed < 0.0f) turnPow = -turnPow * 0.65f;
 
-    carYawVel += turnPower;
-    carYawVel *= isDrifting ? 0.95f : 0.82f;
-    carAngle += carYawVel;
+    carYawVel += turnPow;
+    carYawVel *= isDrifting ? 0.955f : 0.82f;
+    carAngle  += carYawVel;
 
-    static float lateralSpeed = 0.0f;
-
+    // --- SLIP LATERAL ---
+    static float lateralSpd = 0.0f;
     if (isDrifting) {
-        lateralSpeed += (carYawVel * speedRatio * 0.022f);
-        float maxSlip = 0.085f * speedMultiplier;
-        if (lateralSpeed >  maxSlip) lateralSpeed =  maxSlip;
-        if (lateralSpeed < -maxSlip) lateralSpeed = -maxSlip;
+        lateralSpd += carYawVel * speedRatio * 0.022f;
+        float maxSlip = 0.088f * speedMultiplier;
+        if (lateralSpd >  maxSlip) lateralSpd =  maxSlip;
+        if (lateralSpd < -maxSlip) lateralSpd = -maxSlip;
     }
+    float grip     = isDrifting ? 0.986f : 0.82f;
+    lateralSpd    *= grip;
 
-    float grip = isDrifting ? 0.985f : 0.85f; 
-    lateralSpeed *= grip;
-
-    float targetSlip = isDrifting ? (lateralSpeed * -160.0f) : 0.0f;
-    driftSlipAngle += (targetSlip - driftSlipAngle) * 0.12f;
+    float targetSlip = isDrifting ? (lateralSpd * -162.0f) : 0.0f;
+    driftSlipAngle  += (targetSlip - driftSlipAngle) * 0.12f;
     if (fabs(driftSlipAngle) < 0.1f) driftSlipAngle = 0.0f;
 
-    float headingRad = carAngle * M_PI / 180.0f; 
-    
-    float forwardX = -cos(headingRad);
-    float forwardZ =  sin(headingRad);
-    float sideX = sin(headingRad);
-    float sideZ = cos(headingRad);
+    // --- HEADING VECTOR ---
+    float headRad = carAngle * M_PI / 180.0f;
+    float fwdX    = -cos(headRad);
+    float fwdZ    =  sin(headRad);
+    float sideX   =  sin(headRad);
+    float sideZ   =  cos(headRad);
 
-    float nextX = carX + (forwardX * carSpeed) + (sideX * lateralSpeed);
-    float nextZ = carZ + (forwardZ * carSpeed) + (sideZ * lateralSpeed);
+    float nextX = carX + fwdX * carSpeed + sideX * lateralSpd;
+    float nextZ = carZ + fwdZ * carSpeed + sideZ * lateralSpd;
 
     if (isDrifting) {
-        carSpeed *= 0.995f; 
-        driftScore += (fabs(carSpeed) * 6.0f + fabs(lateralSpeed) * 25.0f) * comboMultiplier;
+        carSpeed  *= 0.995f;
+        driftScore += (fabs(carSpeed) * 6.0f + fabs(lateralSpd) * 26.0f) * comboMultiplier;
     }
 
-    bool hitWall = false;
+    // ==============================
+    // COLLISION – CLAMP KE TRACK
+    // ==============================
+    float nx = 0.0f, nz = 0.0f;
+    bool hitWall = clampToTrack(nextX, nextZ, nx, nz);
 
-    if (isOnTrack(nextX, nextZ)) {
-        carX = nextX;
-        carZ = nextZ;
-    } else if (isOnTrack(nextX, carZ)) {
-        carX = nextX;
-        carSpeed *= -0.2f; carYawVel *= 0.2f; lateralSpeed *= -0.5f; 
-        hitWall = true;
-    } else if (isOnTrack(carX, nextZ)) {
-        carZ = nextZ;
-        carSpeed *= -0.2f; carYawVel *= 0.2f; lateralSpeed *= -0.5f;
-        hitWall = true;
-    } else {
-        carSpeed *= -0.25f; carYawVel *= 0.2f; lateralSpeed *= -0.5f;
-        hitWall = true;
-    }
+    carX = nextX;
+    carZ = nextZ;
 
     if (hitWall) {
-        driftFrames = 0; comboMultiplier = 1.0f; isDrifting = false;
-        driftSlipAngle *= 0.35f;
+        // Normalisasi normal (diagonal sudut)
+        float nlen = sqrtf(nx * nx + nz * nz);
+        if (nlen > 0.0f) { nx /= nlen; nz /= nlen; }
+
+        // Refleksikan kecepatan forward terhadap normal dinding
+        float dot = fwdX * nx + fwdZ * nz;
+        if (dot < 0.0f) {  // hanya jika bergerak ke arah dinding
+            carSpeed   *= 0.22f;
+            carYawVel  *= 0.25f;
+            lateralSpd *= -0.45f;
+        }
+        driftFrames    = 0;
+        comboMultiplier = 1.0f;
+        isDrifting      = false;
+        driftSlipAngle *= 0.30f;
     }
 
-    wheelRot += carSpeed * 220.0f;
-    if (wheelRot > 360.0f) wheelRot -= 360.0f;
+    // --- WHEEL ROT ---
+    wheelRot += carSpeed * 222.0f;
+    if (wheelRot >  360.0f) wheelRot -= 360.0f;
     if (wheelRot < -360.0f) wheelRot += 360.0f;
 
     updateSkidMarks();
     updateLapSystem();
+    updateConfetti();
 }
